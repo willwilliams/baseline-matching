@@ -3,7 +3,7 @@ require 'paths'
 
 paths.dofile("DataWorker.lua")
 
-local AbstractMulti, parent = torch.class('nn.AbstractMulti', 'nn.Container')
+local DatMulti, parent = torch.class('DataMulti', 'nn.Container')
 
 --[[
 	dimension : dimension of data to parallelize
@@ -11,7 +11,7 @@ local AbstractMulti, parent = torch.class('nn.AbstractMulti', 'nn.Container')
 		machinesList will be a text file with separate server IP on each line
 ]]
 
-function AbstractMulti:__init(dimension, machinesList)
+function DataMulti:__init(dimension, machinesList, model)
 
     if not dimension then 
         error "must specify a dimension!"
@@ -19,9 +19,8 @@ function AbstractMulti:__init(dimension, machinesList)
     if not machinesList then 
         error "must specify list of machines!"
     end
-    parent.__init(self)
-    self.modules = {} -- list of modules - modules[i] will be handled by process process_list[i]
-    self.size = torch.LongStorage()
+    -- parent.__init(self)
+    self.model = model
     self.dimension = dimension
 
     local machineFile = io.open(machinesList, "r")
@@ -36,14 +35,17 @@ function AbstractMulti:__init(dimension, machinesList)
     -- self.input_machine = {}
     -- self.gradOutput_machine = {}
     -- self.gradInput_machine = {}
+
     self.startNum = 0
+    self.outputs = {}
+
     self:restartChildren()
 end
 
 --[[function for reseting children, in the case that model is 
 	loaded from a file
 ]]
-function AbstractMulti:restartChildren() 
+function DataMulti:restartChildren() 
 	parallel.reset()
  	for i = 1, #machine_list do
     	local childID = parallel.fork(self.machine_list[i], 'ssh')
@@ -52,73 +54,99 @@ function AbstractMulti:restartChildren()
     end
 end
 
-function AbstractMulti:_freeCaches() 
+function DataMulti:_freeCaches() 
 	self.input_machine = {}
 	self.gradOutput_machine = {}
 	self.gradInput_machine = {}
 end
 
--- function AbstractMulti:nextProcess() 
+-- function DatMulti:nextProcess() 
 -- 	local numModules = #self.modules
 -- 	assert(numModules < #self.machine_list)
 -- 	return #self.process_assignments + 1
 -- end
 
--- function AbstractMulti._getBuffer() 
+-- function DatMulti._getBuffer() 
 -- 	local device = 
 -- end
 
-function AbstractMulti:add(module)
-	assert(#self.modules < #self.machine_list)
-	table.insert(self.modules, module)
-	return self
-end
-
-function AbstractMulti:get(index)
-	return self.modules[index]
-end
-
-function AbstractMulti:machineSend(dest, source, destID, sourceID)
+function DataMulti:machineSend(dest, source, destID, sourceID)
 	assert(torch.typename(dest) == 'torch.CudaTensor')
     assert(torch.typename(source) == 'torch.CudaTensor')
 
 end
 
-function AbstractMulti:updateOutput(input)
+--[[sends small input chunk to process; repeats this until 
+	all processes have done an input chunk
+]]
+function DataMulti:updateOutput(input)
 	self.startNum = self.startNum + 1
 
 	-- update output for each module
-	for i, module in ipairs(self.modules) do
+	local processID = self.process_list[self.startNum]
+	local child = parallel.children[processID]
+	child.join("computeOutput")
+
+	-- object to pass to other process
+	computeObject = {model = self.model, inputs = input}
+	child.send(computeObject)
+	if self.startNum % #self.process_list == 0 do
+		self.startNum = 0
+		outputTable = parallel.children:receive()
+		assert(#outputTable == #self.process_list)
+		self.outputs = outputTable
+		return self.outputs
+	end
+end
+
+function DataMulti:accGradParameters(gradOutput, scale)
+	local scale = scale or 1
+	for indx, grad in pairs(gradOutput) do
+		local processID = self.process_list[indx]
+		local child = parallel.children[processID]
+		child.join("gradParameter") 
+		child.send(grad)
+	end
+	local gradients = {}
+	for i = 1, #gradOutput do 
 		local processID = self.process_list[i]
-		parallel.children[processID].join("computeOutput")
-		parallel.children[processID].send(input)
+		local childGrads = parallel.children[processID].receive()
+		for j = 1, #childGrads
+			if not gradients[j] then 
+				gradients[j] = torch.CudaTensor():resize(childGrads[j]:size()):copy(childGrads[j])
+			else
+				gradients[j]:add(childGrads[j])
+			end
+		end
+	end
+
 end
 
-function AbstractMulti:_distributeGradOutput()
+function DataMulti:_distributeGradOutput()
 end
 
-function AbstractMulti:updateGradInput()
+function DataMulti:updateGradInput()
 end
 
-function AbstractMulti:_mixGrads()
+function DataMulti:_mixGrads()
 end
 
-function AbstractMulti:accGradParameters()
+function DataMulti:accGradParameters()
 end
 
-function AbstractMulti:zeroGradParameters()
+function DataMulti:zeroGradParameters()
 end
 
-function AbstractMulti:updateParameters()
+function DataMulti:updateParameters()
 end
 
-function AbstractMulti:share()
+function DataMulti:share()
 end
 
-function AbstractMulti:clone()
+function DataMulti:clone()
 end
 
-function AbstractMulti:reset()
+function DataMulti:reset()
 end
 
 
