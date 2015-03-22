@@ -11,22 +11,18 @@ function dataWorker()
 
 	function outputWorker() 
 		local info = parallel.parent:receive()
-		if info do	
-			local inputsCPU = info.inputs
-			modelInputs:resize(inputsCPU:size()):copy(inputsCPU)
-			currModel = info.model
-			return currModel:updateOutput(modelInputs)
-		end
+		local inputsCPU = info.inputs
+		modelInputs:resize(inputsCPU:size()):copy(inputsCPU)
+		currModel = info.model
+		return currModel:updateOutput(modelInputs)	
 	end
 
 	function gradWorker() 
 		local grads = parallel.parent:receive()
-		if grads do
-			currModel:accGradParameters(modelInputs, grads)
-			local _,grads = currModel:parameters()
-			currModel = nil
-			return grads
-		end
+		currModel:accGradParameters(modelInputs, grads)
+		local _,grads = currModel:parameters()
+		currModel = nil
+		return grads
 	end
 
 	while true do 
@@ -40,5 +36,4 @@ function dataWorker()
 			parallel.parent:send(grads)
 		end
 	end
-
 end
