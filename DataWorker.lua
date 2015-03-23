@@ -5,7 +5,9 @@ function dataWorker()
 	require 'cudnn'
 
 	parallel.print('Process with ID ' .. parallel.id .. ' and ip ' .. parallel.ip .. ' is starting up.')
-	
+	local criterion = parallel.parent.receive()
+	criterion:cuda()
+
 	local modelInputs = torch.CudaTensor()
 	local currModel = nil
 
@@ -14,7 +16,19 @@ function dataWorker()
 		local inputsCPU = info.inputs
 		modelInputs:resize(inputsCPU:size()):copy(inputsCPU)
 		currModel = info.model
-		return currModel:updateOutput(modelInputs)	
+		currModel:cuda()
+		local labelsCPU = info.labels
+		local labels = torch.CudaTensor():resize(labelsCPU:size()):copy(labelsCPU)
+
+		local currOutputs = currModel:updateOutput(modelInputs), 
+		local err = criterion:forward(currOutputs, labels)
+		local gradOutputs = criterion:backward(currOutputs, labels)
+
+		return {
+			output = currOutputs, 
+			err = err, 
+			grad = gradOutputs
+		}	
 	end
 
 	function gradWorker() 
@@ -32,7 +46,7 @@ function dataWorker()
 			parallel.parent:send(outs)
 		else if yieldMessage == "gradParameter" do 
 			assert(currModel != nil)
-			gradWorker()
+			local grads = gradWorker()
 			parallel.parent:send(grads)
 		end
 	end

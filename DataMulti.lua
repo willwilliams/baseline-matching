@@ -10,7 +10,7 @@ local DatMulti, parent = torch.class('DataMulti', 'nn.Container')
 		machinesList will be a text file with separate server IP on each line
 	model : which model we are training in parallel
 ]]
-function DataMulti:__init(machinesList, model)
+function DataMulti:__init(machinesList, model, criterion)
 
     if not model then 
         error "must specify a model!"
@@ -18,7 +18,12 @@ function DataMulti:__init(machinesList, model)
     if not machinesList then 
         error "must specify list of machines!"
     end
+    if not criterion then 
+    	error "must specify an optimization criterion!"
+    end
+
     self.model = model
+    self.criterion = criterion
 
     local machineFile = io.open(machinesList, "r")
     io.input(machineFile)
@@ -31,7 +36,10 @@ function DataMulti:__init(machinesList, model)
     self.process_to_machine = {} -- key is the child process id, value is the machine id
     self.startNum = 0
     self.outputs = {}
+    self.gradOutputs = {}
+    self.errs = {}
 
+    self.numMachines = #self.machine_list
     self:restartChildren()
 end
 
@@ -46,6 +54,7 @@ function DataMulti:restartChildren()
     	table.insert(self.process_list, child.id)
     end
     parallel.children.exec(dataWorker)
+    parallel.children.send(self.criterion)
 end
 
 function DataMulti:_freeCaches() 
@@ -62,8 +71,10 @@ end
 
 --[[sends small input chunk to process; repeats this until 
 	all processes have done an input chunk
+	calculates output of model, error of model (based on criterion),
+	and gradients of loss with respect to the output
 ]]
-function DataMulti:updateOutput(input)
+function DataMulti:updateOutput(inputCPU, labelsCPU)
 	self.startNum = self.startNum + 1
 
 	-- update output for each module
@@ -72,19 +83,29 @@ function DataMulti:updateOutput(input)
 	child.join("computeOutput")
 
 	-- object to pass to other process
-	computeObject = {model = self.model, inputs = input}
+	computeObject = {model = self.model, inputs = inputCPU, labels = labelsCPU}
 	child.send(computeObject)
 	if self.startNum % #self.process_list == 0 do
 		self.startNum = 0
 		outputTable = parallel.children:receive()
-		assert(#outputTable == #self.process_list)
-		self.outputs = outputTable
+		self:_convertOutputTable(outputTable)
 		return self.outputs
 	end
 end
 
-function DataMulti:accGradParameters(gradOutput, scale)
+function DataMulti:_convertOutputTable(outputTable)
+	local numOutputs = #outputTable
+	assert(numOutputs == #process_list)
+	for i = 1, numOutputs do 
+		self.outputs[i] = outputTable[i].output
+		self.errs[i] = outputTable[i].err
+		self.gradOutputs[i] = outputTable[i].grad
+	end
+end
+
+function DataMulti:accGradParameters(scale)
 	local scale = scale or 1
+	local gradOutput = self.gradOutputs
 	for indx, grad in pairs(gradOutput) do
 		local processID = self.process_list[indx]
 		local child = parallel.children[processID]
@@ -109,6 +130,18 @@ function DataMulti:updateParameters(learningRate)
 	self.model:updateParameters(learningRate)
 end
 
+function DataMulti:getErrs()
+	return self.errs
+end
+
+function DataMulti:getOutputs()
+	return self.outputs
+end
+
+function DataMulti:getGradOutputs()
+	return self.gradOutputs
+end
+
 function DataMulti:extractModel()
 	return self.model
 end
@@ -118,4 +151,6 @@ function DataMulti:reset(stdv)
 	self:restartChildren()
 end
 
-
+function DataMulti:getNumMachines() 
+	return self.numMachines
+end
