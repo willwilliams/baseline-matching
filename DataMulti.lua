@@ -1,7 +1,7 @@
 require 'parallel'
 require 'paths'
 
-paths.dofile("DataWorker.lua")
+paths.dofile("DataMulti.lua")
 
 local DatMulti, parent = torch.class('DataMulti', 'nn.Container')
 
@@ -38,9 +38,19 @@ function DataMulti:__init(machinesList, model, criterion)
     self.outputs = {}
     self.gradOutputs = {}
     self.errs = {}
+    self.labels_cache = {}
 
     self.numMachines = #self.machine_list
+    assert(#self.process_list == self.numMachines)
     self:restartChildren()
+end
+
+function DataMulti:_resetBatchBegin()
+	self.outputs = {}
+	self.gradOutputs = {}
+	self.errs = {}
+	self.labels_cache = {}
+	self.startNum = 0
 end
 
 --[[function for reseting children, in the case that model is 
@@ -57,57 +67,55 @@ function DataMulti:restartChildren()
     parallel.children.send(self.criterion)
 end
 
-function DataMulti:_freeCaches() 
-	self.input_machine = {}
-	self.gradOutput_machine = {}
-	self.gradInput_machine = {}
-end
-
-function DataMulti:machineSend(dest, source, destID, sourceID)
-	assert(torch.typename(dest) == 'torch.CudaTensor')
-    assert(torch.typename(source) == 'torch.CudaTensor')
-
-end
-
 --[[sends small input chunk to process; repeats this until 
 	all processes have done an input chunk
 	calculates output of model, error of model (based on criterion),
 	and gradients of loss with respect to the output
 ]]
 function DataMulti:updateOutput(inputCPU, labelsCPU)
+	if self.startNum % self.numMachines == 0 do 
+		self:_resetBatchBegin()
+	end
+	
 	self.startNum = self.startNum + 1
 
-	-- update output for each module
 	local processID = self.process_list[self.startNum]
+	
+	-- cache labels for prediction purposes
+	self.labels_cache[processID] = labelsCPU
+
+	-- update output for each module
 	local child = parallel.children[processID]
 	child.join("computeOutput")
 
 	-- object to pass to other process
 	computeObject = {model = self.model, inputs = inputCPU, labels = labelsCPU}
 	child.send(computeObject)
-	if self.startNum % #self.process_list == 0 do
-		self.startNum = 0
-		outputTable = parallel.children:receive()
+	if self.startNum % self.numMachines == 0 do
+		outputTable = parallel.children.receive()
 		self:_convertOutputTable(outputTable)
 		return self.outputs
 	end
 end
 
+function DataMulti:getLabelsCache()
+	return self.labels_cache
+end
+
 function DataMulti:_convertOutputTable(outputTable)
 	local numOutputs = #outputTable
-	assert(numOutputs == #process_list)
-	for i = 1, numOutputs do 
-		self.outputs[i] = outputTable[i].output
-		self.errs[i] = outputTable[i].err
-		self.gradOutputs[i] = outputTable[i].grad
+	assert(numOutputs == self.numMachines)
+	for i, outputVal in outputTable do  
+		self.outputs[i] = outputVal.output
+		self.errs[i] = outputVal.err
+		self.gradOutputs[i] = outputVal.grad
 	end
 end
 
 function DataMulti:accGradParameters(scale)
 	local scale = scale or 1
 	local gradOutput = self.gradOutputs
-	for indx, grad in pairs(gradOutput) do
-		local processID = self.process_list[indx]
+	for processID, grad in pairs(gradOutput) do
 		local child = parallel.children[processID]
 		child.join("gradParameter") 
 		child.send(grad)

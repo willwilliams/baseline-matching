@@ -25,7 +25,7 @@ if opt.optimState ~= 'none' then
     optimState = torch.load(opt.optimState)
 end
 
-local optimator = ParallelOptim(model, optimState)
+local optimator = ParallelOptim(opt.machines, model, optimState, criterion)
 
 -- Learning rate annealing schedule. We will build a new optimizer for
 -- each epoch.
@@ -82,12 +82,11 @@ function train()
    model:training()
    model:cuda() -- get it back on the right GPUs.
 
-   local tm = torch.Timer()
    top1_epoch = 0
    top5_epoch = 0
    loss_epoch = 0
 
-   for i=1,opt.epochSize do
+   for i=1,opt.epochSize*optimator:getNumMachines() do
       -- queue jobs to data-workers
       donkeys:addjob(
          -- the job callback (runs in data-worker thread)
@@ -96,7 +95,7 @@ function train()
             return sendTensor(inputs), sendTensor(labels)
          end,
          -- the end callback (runs in the main thread)
-         trainBatch
+         trainSingleProcess
       )
       if i % 5 == 0 then
          donkeys:synchronize()
@@ -150,63 +149,47 @@ end -- of train()
 -- the thread loaders will push their storages to these buffers when done loading
 local inputsCPU = torch.FloatTensor()
 local labelsCPU = torch.LongTensor()
-
--- GPU inputs (preallocate)
-local inputs = torch.CudaTensor()
-local labels = torch.CudaTensor()
-
-local timer = torch.Timer()
-local dataTimer = torch.Timer()
 -- 4. trainBatch - Used by train() to train a single batch after the data is loaded.
-function trainBatch(inputsThread, labelsThread)
-   cutorch.synchronize()
-   local dataLoadingTime = dataTimer:time().real
-   timer:reset()
+function trainSingleProcess(inputsThread, labelsThread)
+  cutorch.synchronize()
    -- set the data and labels to the main thread tensor buffers (free any existing storage)
-   receiveTensor(inputsThread, inputsCPU)
-   receiveTensor(labelsThread, labelsCPU)
+  receiveTensor(inputsThread, inputsCPU)
+  receiveTensor(labelsThread, labelsCPU)
 
-   -- transfer over to GPU
-   inputs:resize(inputsCPU:size()):copy(inputsCPU)
-   labels:resize(labelsCPU:size()):copy(labelsCPU)
-
-   local err, outputs = optimator:optimize(
-       optim.sgd,
-       inputs,
-       labels,
-       criterion)
-
-   cutorch.synchronize()
-   -- Calculate top-1 and top-5 errors, and print information
-   print(('Epoch: [%d][%d/%d]\tTime %.3f Err %.4f LR %.0e DataLoadingTime %.3f'):format(
-          epoch, batchNumber, opt.epochSize, timer:time().real, err,
-          optimState.learningRate, dataLoadingTime))
-   batchNumber = batchNumber + 1
-   loss_epoch = loss_epoch + err
-   if (batchNumber % 15) == 0 then
+  optimator:singleProcessTrain(inputsCPU, labelsCPU)
+  if(optimator:getNumProcessForBatch() % optimator:getNumMachines() == 0) then
+    local err, outputs = optimator:optimize(optim.sgd)
+    cutorch.synchronize()
+    -- Calculate top-1 and top-5 errors, and print information
+    print(('Epoch: [%d][%d/%d]\tErr %.4f LR %.0e'):format(
+          epoch, batchNumber, opt.epochSize, err,
+          optimState.learningRate))
+    batchNumber = batchNumber + 1
+    loss_epoch = loss_epoch + err
+    if (batchNumber % 15) == 0 then
        -- top-1 and top-5 error
-       local top1 = 0
-       local top5 = 0
-       do
-          local gt = labelsCPU
-          local _,prediction_sorted = outputs:float():sort(2, true) -- descending
+      local top1 = 0
+      do
+        local labelsCache = optimator:getCachedLabels()
+        for processID, output in pairs(outputs) do 
+          local _,prediction_sorted = output:float():sort(2, true) -- descending
+          local gt = labelsCache[processID]
           for i=1,opt.batchSize do
-             local pi = prediction_sorted[i]
-             if pi[1] == gt[i] then top1 = top1 + 1; top5 = top5 + 1;
-             else for j=2,5 do if pi[j] == gt[i] then top5 = top5 + 1; break; end; end; end
+            local pi = prediction_sorted[i]
+            if pi[1] == gt[i] then top1 = top1 + 1 end
           end
-          top1_epoch = top1_epoch + top1; top5_epoch = top5_epoch + top5
-          top1 = top1 * 100 / opt.batchSize; top5 = top5 * 100 / opt.batchSize
-       end
+        end
+        top1_epoch = top1_epoch + top1
+        top1 = top1 * 100 / (opt.batchSize * optimator:getNumMachines)
+      end
 
        -- print info
-       print(string.format('Accuracy ' ..
+      print(string.format('Accuracy ' ..
                               'top1-%%: %.2f \t' ..
-                              'top5-%%: %.2f \t' ..
                               'Loss: %.4f \t' ..
                               'LR: %.0e',
-                           top1, top5, err,
+                           top1, err,
                            optimState.learningRate))
-   end
-   dataTimer:reset()
+    end
+  end
 end
