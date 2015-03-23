@@ -59,7 +59,7 @@ end
 function DataMulti:restartChildren() 
 	parallel.reset()
  	for i = 1, #machine_list do
-    	local child = parallel.fork(self.machine_list[i], 'ssh')
+    	local child = parallel.fork(self.machine_list[i], 'ssh -i /neural_networks/cluster-key')
     	self.process_to_machine[child.id] = i
     	table.insert(self.process_list, child.id)
     end
