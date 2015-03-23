@@ -106,18 +106,16 @@ function train()
    cutorch.synchronize()
 
    top1_epoch = top1_epoch * 100 / (opt.batchSize * opt.epochSize)
-   top5_epoch = top5_epoch * 100 / (opt.batchSize * opt.epochSize)
    loss_epoch = loss_epoch / opt.epochSize
 
    trainLogger:add{
       ['% top1 accuracy (train set)'] = top1_epoch,
-      ['% top5 accuracy (train set)'] = top5_epoch,
       ['avg loss (train set)'] = loss_epoch
    }
    print(string.format('Epoch: [%d][TRAINING SUMMARY] Total Time(s): %.2f\t'
                           .. 'average loss (per batch): %.2f \t '
-                          .. 'accuracy(%%):\t top-1 %.2f\t top-5 %.2f',
-                       epoch, tm:time().real, loss_epoch, top1_epoch, top5_epoch))
+                          .. 'accuracy(%%):\t top-1 %.2f',
+                       epoch, tm:time().real, loss_epoch, top1_epoch))
    print('\n')
 
    -- save model

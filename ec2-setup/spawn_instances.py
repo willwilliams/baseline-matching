@@ -1,6 +1,7 @@
 import boto.ec2
 import sys
 import copy
+import time
 
 # args: args[1] is price, args[2] is ami, args[3] is number of instances
 args = sys.argv
@@ -17,6 +18,7 @@ request = ec2.request_spot_instances(
 	count=numInstances,
 	key_name='cluster-key', 
 	instance_type='g2.2xlarge',
+	placement='us-east-1e',
 	placement_group='parallel_cluster',
 	ebs_optimized=True
 )
@@ -26,17 +28,17 @@ def wait_for_fulfillment(conn, request_ids, pending_request_ids):
     # If a request is fulfilled, remove it from pending_request_ids.
     # If there are still pending requests, sleep and check again in 10 seconds.
     # Only return when all spot requests have been fulfilled.
-    instance_ids = []
-    while len(pending_request_ids) > 0:
-	    results = conn.get_all_spot_instance_requests(request_ids=pending_request_ids)
-	    for result in results:
-	        if result.status.code == 'fulfilled':
-	            pending_request_ids.pop(pending_request_ids.index(result.id))
-	            print "spot request `{}` fulfilled!".format(result.id)
-	            instance_ids.append(result.instance_id)
-	        else:
-	            print "waiting on `{}`".format(result.id)
-	    time.sleep(10)
+	instance_ids = []
+	while len(pending_request_ids) > 0:
+		results = conn.get_all_spot_instance_requests(request_ids=pending_request_ids)
+		for result in results:
+			if result.status.code == 'fulfilled':
+				pending_request_ids.pop(pending_request_ids.index(result.id))
+				print "spot request `{}` fulfilled!".format(result.id)
+				instance_ids.append(result.instance_id)
+			else:
+				print "waiting on `{}`".format(result.id)
+		time.sleep(60)
 	print('all spot requests fulfilled!')
 	return instance_ids
 
@@ -49,5 +51,5 @@ instance_ids = wait_for_fulfillment(ec2, request_ids, copy.deepcopy(request_ids)
 # get DNS names and print
 instance_list = ec2.get_only_instances(instance_ids=instance_ids)
 for instance in instance_list:
-	print(instance.public_dns_name)
+	print('ubuntu@' + instance.public_dns_name)
 

@@ -1,7 +1,7 @@
 local M = { }
 
 function M.parse(arg)
-    local defaultDir = paths.concat(os.getenv('HOME'), 'baseline_matching_runs')
+    local defaultDir = '/neural_networks'
 
     local cmd = torch.CmdLine()
     cmd:text()
@@ -13,9 +13,12 @@ function M.parse(arg)
     cmd:option('-cache',
                defaultDir ..'/parallel_stack_baseline_runs',
                'subdirectory in which to save/log experiments')
-    cmd:option('-data',
-               defaultDir .. '/streetview_images',
-               'home of streetview dataset')
+    cmd:option('-trainData',
+               defaultDir .. '/resizedir',
+               'home of training streetview dataset')
+    cmd:option('-testData', 
+               defaultDir .. '/Washington13_resize', 
+               'home of testing streetview dataset')
     cmd:option('-machines',
                'none',  
                'list of machine IPs to train on')
@@ -27,6 +30,7 @@ function M.parse(arg)
     cmd:option('-epochSize',       10000, 'Number of batches per epoch')
     cmd:option('-epochNumber',     1,     'Manual epoch number (useful on restarts)')
     cmd:option('-batchSize',       128,   'mini-batch size for each machine')
+    cmd:option('-nTest',           1000,  'number of test images to use')
     cmd:option('-testBatchSize',    12,   'mini-batch size for testing')
     ---------- Optimization options ----------------------
     cmd:option('-LR',    0.0, 'learning rate; if set, overrides default LR/WD recipe')
