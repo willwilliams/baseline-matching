@@ -97,7 +97,7 @@ function train()
          -- the end callback (runs in the main thread)
          trainSingleProcess
       )
-      if i % 5 == 0 then
+      if i % (optimator:getNumMachines() + 3) == 0 then
          donkeys:synchronize()
       end
    end
