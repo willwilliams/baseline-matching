@@ -55,7 +55,7 @@ end
 function DataMulti:restartChildren() 
     parallel.reset()
     for i = 1, #self.machine_list do
-    	local child = parallel.fork(self.machine_list[i], 'ssh -Y -i /neural_networks/cluster-key', paths.findprogram('th'))
+    	local child = parallel.fork(self.machine_list[i], 'ssh -o StrictHostKeyChecking=no -Y -i /neural_networks/cluster-key', paths.findprogram('th'))
     	self.process_to_machine[child.id] = i
     	table.insert(self.process_list, child.id)
     end
@@ -102,7 +102,7 @@ function DataMulti:updateOutputAccGradParams(inputCPU, labelsCPU)
 			end
 		end
 		for i = 1, #gradients do
-			gradients[j]:div(self.numMachines)
+			gradients[i]:div(self.numMachines)
 		end
 		return self.outputs
 	end
