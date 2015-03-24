@@ -102,7 +102,7 @@ function DataMulti:updateOutputAccGradParams(inputCPU, labelsCPU)
 			end
 		end
 		for i = 1, #gradients do
-			gradients[j]:div(self.numMachines)
+			gradients[i]:div(self.numMachines)
 		end
 		return self.outputs
 	end

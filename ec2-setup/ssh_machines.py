@@ -12,7 +12,7 @@ for line in machinesFile.readlines():
 	print("verifying RSA fingerprint")
 	child.sendline("yes")
 	print("verified")
-	time.sleep(10)
-	os.system("exit")
+	time.sleep(0.5)
+	child.sendline("exit")
 	print("exited machine")
 	
