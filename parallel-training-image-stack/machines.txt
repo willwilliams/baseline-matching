@@ -1,2 +1,6 @@
-ubuntu@ec2-54-173-172-185.compute-1.amazonaws.com
-ubuntu@ec2-54-85-146-145.compute-1.amazonaws.com
+ubuntu@ec2-54-175-92-168.compute-1.amazonaws.com
+ubuntu@ec2-54-175-94-158.compute-1.amazonaws.com
+ubuntu@ec2-54-152-239-86.compute-1.amazonaws.com
+ubuntu@ec2-54-175-105-123.compute-1.amazonaws.com
+ubuntu@ec2-54-175-91-82.compute-1.amazonaws.com
+ubuntu@ec2-54-175-96-220.compute-1.amazonaws.com

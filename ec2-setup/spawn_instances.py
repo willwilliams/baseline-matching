@@ -38,6 +38,8 @@ def wait_for_fulfillment(conn, request_ids, pending_request_ids):
 				instance_ids.append(result.instance_id)
 			else:
 				print "waiting on `{}`".format(result.id)
+		if len(pending_request_ids) == 0:
+			break
 		time.sleep(60)
 	print('all spot requests fulfilled!')
 	return instance_ids
