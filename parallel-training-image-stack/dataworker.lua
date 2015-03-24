@@ -7,17 +7,16 @@ function dataWorker()
 	require 'cunn'
 	--require 'cudnn'
 
-        local criterion = nn.ClassNLLCriterion()	
-        criterion:cuda()
+    local criterion = nn.ClassNLLCriterion()	
+    criterion:cuda()
 
 	local modelInputs = torch.CudaTensor()
-	local currModel = nil
 
-	function outputWorker() 
+	function outputGradsWorker() 
 		local info = parallel.parent:receive()
 		local inputsCPU = info.inputs
 		modelInputs:resize(inputsCPU:size()):copy(inputsCPU)
-		currModel = info.model
+		local currModel = info.model
 		currModel:cuda()
 		local labelsCPU = info.labels
 		local labels = torch.CudaTensor():resize(labelsCPU:size()):copy(labelsCPU)
@@ -25,36 +24,20 @@ function dataWorker()
 		local currOutputs = currModel:forward(modelInputs)
 		local err = criterion:forward(currOutputs, labels)
 		local gradOutputs = criterion:backward(currOutputs, labels)
+		currModel:backward(modelInputs, gradOutputs)
+		local _,gradParams = currModel:parameters()
 
 		return {
 			output = currOutputs, 
 			err = err, 
-			grad = gradOutputs
+			gradParam = gradParams
 		}	
 	end
 
-	function gradWorker() 
-		local grads = parallel.parent:receive()
-		--local grads = torch.CudaTensor():resize(gradsSent:size()):copy(gradsSent)
-                currModel:backward(modelInputs, grads)
-		local _,gradParams = currModel:parameters()
-		currModel = nil
-		return gradParams
-	end
-
 	while true do 
-		local yieldMessage = parallel.yield()
-		if yieldMessage == "computeOutput" then
-			--parallel.print("Computing outputs.")
-			local outs = outputWorker()
-			parallel.parent:send(outs)
-		else if yieldMessage == "gradParameter" then 
-			assert(currModel ~= nil)
-			--parallel.print("Calculating parameter gradients.")
-			local grads = gradWorker()
-			parallel.parent:send(grads)
-		     end
-		end
+		parallel.yield()
+		local outputGrads = outputGradsWorker()
+		parallel.parent:send(outputGrads)
 		collectgarbage()
 	end
 end

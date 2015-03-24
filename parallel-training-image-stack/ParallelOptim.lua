@@ -14,7 +14,7 @@ function ParallelOptim:__init(machinesList, model, optState, checkpoint_data)
 end
 
 function ParallelOptim:singleProcessTrain(inputsCPU, labelsCPU)
-	self.parallelTrainer:updateOutput(inputsCPU, labelsCPU)
+	self.parallelTrainer:updateOutputAccGradParams(inputsCPU, labelsCPU)
 end
 
 function ParallelOptim:getNumMachines()
@@ -66,9 +66,6 @@ function ParallelOptim:optimize(optimMethod)
 		errTotal = errTotal + errValue
 	end
 	errTotal = errTotal/self.numMachines
-
-	self.parallelTrainer:zeroGradParameters()
-	self.parallelTrainer:accGradParameters()
 
 	local curGrad
 	local curParam
