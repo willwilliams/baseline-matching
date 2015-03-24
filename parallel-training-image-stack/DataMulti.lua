@@ -67,7 +67,7 @@ end
 	calculates output of model, error of model (based on criterion),
 	and gradients of loss with respect to the output
 ]]
-function DataMulti:updateOutput(inputCPU, labelsCPU)
+function DataMulti:updateOutputAccGradParams(inputCPU, labelsCPU)
 	if self.startNum % self.numMachines == 0 then 
 		self:_resetBatchBegin()
 	end
@@ -86,48 +86,30 @@ function DataMulti:updateOutput(inputCPU, labelsCPU)
 	-- object to pass to other process
 	computeObject = {model = self.model, inputs = inputCPU, labels = labelsCPU}
 	child:send(computeObject)
+
+	-- if we finished entire batch for all processes
 	if self.startNum % self.numMachines == 0 then
-		outputTable = parallel.children:receive()
-		print("Received outputs.")
-		self:_convertOutputTable(outputTable)
+		local _,gradients = self.model:parameters()
+		for i = 1, self.numMachines do
+			local id = self.process_list[i]
+			outputVal = parallel.children[id]:receive()
+			print("Received outputs from child " .. id)
+			self.outputs[id] = outputVal.output
+			self.errs[id] = outputVal.err
+			local childGrads = outputVal.gradParam
+			for j = 1, #childGrads do
+				gradients[j]:add(childGrads[j])
+			end
+		end
+		for i = 1, #gradients do
+			gradients[j]:div(self.numMachines)
+		end
 		return self.outputs
 	end
 end
 
 function DataMulti:getLabelsCache()
 	return self.labels_cache
-end
-
-function DataMulti:_convertOutputTable(outputTable)
-	local numOutputs = #outputTable
-	assert(numOutputs == self.numMachines)
-	for i, outputVal in pairs(outputTable) do  
-		self.outputs[i] = outputVal.output
-		self.errs[i] = outputVal.err
-		self.gradOutputs[i] = outputVal.grad
-	end
-end
-
-function DataMulti:accGradParameters(scale)
-	local scale = scale or 1
-	local gradOutput = self.gradOutputs
-	for processID, grad in pairs(gradOutput) do
-		local child = parallel.children[processID]
-		child:join("gradParameter") 
-		child:send(grad)
-	end
-	local _,gradients = self.model:parameters()
-	--print(gradients)
-	for processID,_ in pairs(gradOutput) do 
-		local childGrads = parallel.children[processID]:receive()
-	--	print(childGrads)
-                for j = 1, #childGrads do
-			gradients[j]:add(childGrads[j])
-		end
-	end
-	for j = 1, #gradients do
-	  gradients[j]:div(self.numMachines)
-	end
 end
 
 function DataMulti:zeroGradParameters()
