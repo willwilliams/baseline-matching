@@ -95,5 +95,6 @@ function ParallelOptim:optimize(optimMethod)
             end
         end)
     end
+    self.parallelTrainer:zeroGradParameters()
     return errTotal, self.parallelTrainer:getOutputs()
 end

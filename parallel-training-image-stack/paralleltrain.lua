@@ -191,4 +191,5 @@ function trainSingleProcess(inputsThread, labelsThread)
                            optimState.learningRate))
     end
   end
+  collectgarbage()
 end

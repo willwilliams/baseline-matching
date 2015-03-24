@@ -88,6 +88,7 @@ function DataMulti:updateOutput(inputCPU, labelsCPU)
 	child:send(computeObject)
 	if self.startNum % self.numMachines == 0 then
 		outputTable = parallel.children:receive()
+		print("Received outputs.")
 		self:_convertOutputTable(outputTable)
 		return self.outputs
 	end
@@ -116,10 +117,11 @@ function DataMulti:accGradParameters(scale)
 		child:send(grad)
 	end
 	local _,gradients = self.model:parameters()
-	for i = 1, #gradOutput do 
-		local processID = self.process_list[i]
+	--print(gradients)
+	for processID,_ in pairs(gradOutput) do 
 		local childGrads = parallel.children[processID]:receive()
-		for j = 1, #childGrads do
+	--	print(childGrads)
+                for j = 1, #childGrads do
 			gradients[j]:add(childGrads[j])
 		end
 	end

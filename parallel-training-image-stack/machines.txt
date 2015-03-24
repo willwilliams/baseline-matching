@@ -1,0 +1,2 @@
+ubuntu@ec2-54-173-172-185.compute-1.amazonaws.com
+ubuntu@ec2-54-85-146-145.compute-1.amazonaws.com
