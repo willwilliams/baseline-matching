@@ -14,13 +14,13 @@ function M.parse(arg)
                defaultDir ..'/parallel_stack_baseline_runs',
                'subdirectory in which to save/log experiments')
     cmd:option('-trainData',
-               defaultDir .. '/resizedir',
+               defaultDir .. '/',
                'home of training streetview dataset')
     cmd:option('-testData', 
-               defaultDir .. '/Washington13_resize', 
+               defaultDir .. '/', 
                'home of testing streetview dataset')
     cmd:option('-machines',
-               'none',  
+               'machines.txt',  
                'list of machine IPs to train on')
     cmd:option('-manualSeed',         2, 'Manually set RNG seed')
     ------------- Data options ------------------------
@@ -40,7 +40,6 @@ function M.parse(arg)
     cmd:option('-netType',     'alexnet', 'Options: alexnet | overfeat')
     cmd:option('-retrain',     'none', 'provide path to model to retrain with')
     cmd:option('-optimState',  'none', 'provide path to an optimState to reload from')
-    cmd:option
     cmd:text()
 
     local opt = cmd:parse(arg or {})

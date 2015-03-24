@@ -25,7 +25,7 @@ if opt.optimState ~= 'none' then
     optimState = torch.load(opt.optimState)
 end
 
-local optimator = ParallelOptim(opt.machines, model, optimState, criterion)
+local optimator = ParallelOptim(opt.machines, model, optimState)
 
 -- Learning rate annealing schedule. We will build a new optimizer for
 -- each epoch.
@@ -71,10 +71,10 @@ function train()
 
    local params, newRegime = paramsForEpoch(epoch)
    optimator:setParameters(params)
-   if newRegime then
-       -- Zero the momentum vector by throwing away previous state.
-       optimator = nn.ParallelOptim(model, optimState)
-   end
+   --if newRegime then
+   --    -- Zero the momentum vector by throwing away previous state.
+   --    optimator = ParallelOptim(opt.machines, model, optimState, criterion)
+   --end
    batchNumber = 0
    cutorch.synchronize()
 
@@ -154,6 +154,7 @@ function trainSingleProcess(inputsThread, labelsThread)
   receiveTensor(inputsThread, inputsCPU)
   receiveTensor(labelsThread, labelsCPU)
 
+  print("Received single process inputs, will train on them.")
   optimator:singleProcessTrain(inputsCPU, labelsCPU)
   if(optimator:getNumProcessForBatch() % optimator:getNumMachines() == 0) then
     local err, outputs = optimator:optimize(optim.sgd)
@@ -178,7 +179,7 @@ function trainSingleProcess(inputsThread, labelsThread)
           end
         end
         top1_epoch = top1_epoch + top1
-        top1 = top1 * 100 / (opt.batchSize * optimator:getNumMachines)
+        top1 = top1 * 100 / (opt.batchSize * optimator:getNumMachines())
       end
 
        -- print info

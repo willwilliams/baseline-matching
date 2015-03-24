@@ -1,16 +1,16 @@
 require 'parallel'
 require 'paths'
 
-paths.dofile("DataMulti.lua")
+paths.dofile('dataworker.lua')
 
-local DatMulti, parent = torch.class('DataMulti', 'nn.Container')
+local DataMulti, parent = torch.class('DataMulti')
 
 --[[
 	machinesList : list of machines we are parallelizing across
 		machinesList will be a text file with separate server IP on each line
 	model : which model we are training in parallel
 ]]
-function DataMulti:__init(machinesList, model, criterion)
+function DataMulti:__init(machinesList, model)
 
     if not model then 
         error "must specify a model!"
@@ -18,12 +18,8 @@ function DataMulti:__init(machinesList, model, criterion)
     if not machinesList then 
         error "must specify list of machines!"
     end
-    if not criterion then 
-    	error "must specify an optimization criterion!"
-    end
 
     self.model = model
-    self.criterion = criterion
 
     local machineFile = io.open(machinesList, "r")
     io.input(machineFile)
@@ -41,8 +37,8 @@ function DataMulti:__init(machinesList, model, criterion)
     self.labels_cache = {}
 
     self.numMachines = #self.machine_list
-    assert(#self.process_list == self.numMachines)
     self:restartChildren()
+    assert(#self.process_list == self.numMachines)
 end
 
 function DataMulti:_resetBatchBegin()
@@ -57,14 +53,13 @@ end
 	loaded from a file
 ]]
 function DataMulti:restartChildren() 
-	parallel.reset()
- 	for i = 1, #machine_list do
-    	local child = parallel.fork(self.machine_list[i], 'ssh -i /neural_networks/cluster-key')
+    parallel.reset()
+    for i = 1, #self.machine_list do
+    	local child = parallel.fork(self.machine_list[i], 'ssh -Y -i /neural_networks/cluster-key', paths.findprogram('th'))
     	self.process_to_machine[child.id] = i
     	table.insert(self.process_list, child.id)
     end
-    parallel.children.exec(dataWorker)
-    parallel.children.send(self.criterion)
+    parallel.children:exec(dataWorker)
 end
 
 --[[sends small input chunk to process; repeats this until 
@@ -73,7 +68,7 @@ end
 	and gradients of loss with respect to the output
 ]]
 function DataMulti:updateOutput(inputCPU, labelsCPU)
-	if self.startNum % self.numMachines == 0 do 
+	if self.startNum % self.numMachines == 0 then 
 		self:_resetBatchBegin()
 	end
 	
@@ -86,13 +81,13 @@ function DataMulti:updateOutput(inputCPU, labelsCPU)
 
 	-- update output for each module
 	local child = parallel.children[processID]
-	child.join("computeOutput")
+	child:join("computeOutput")
 
 	-- object to pass to other process
 	computeObject = {model = self.model, inputs = inputCPU, labels = labelsCPU}
-	child.send(computeObject)
-	if self.startNum % self.numMachines == 0 do
-		outputTable = parallel.children.receive()
+	child:send(computeObject)
+	if self.startNum % self.numMachines == 0 then
+		outputTable = parallel.children:receive()
 		self:_convertOutputTable(outputTable)
 		return self.outputs
 	end
@@ -105,7 +100,7 @@ end
 function DataMulti:_convertOutputTable(outputTable)
 	local numOutputs = #outputTable
 	assert(numOutputs == self.numMachines)
-	for i, outputVal in outputTable do  
+	for i, outputVal in pairs(outputTable) do  
 		self.outputs[i] = outputVal.output
 		self.errs[i] = outputVal.err
 		self.gradOutputs[i] = outputVal.grad
@@ -117,16 +112,19 @@ function DataMulti:accGradParameters(scale)
 	local gradOutput = self.gradOutputs
 	for processID, grad in pairs(gradOutput) do
 		local child = parallel.children[processID]
-		child.join("gradParameter") 
-		child.send(grad)
+		child:join("gradParameter") 
+		child:send(grad)
 	end
 	local _,gradients = self.model:parameters()
 	for i = 1, #gradOutput do 
 		local processID = self.process_list[i]
-		local childGrads = parallel.children[processID].receive()
-		for j = 1, #childGrads
+		local childGrads = parallel.children[processID]:receive()
+		for j = 1, #childGrads do
 			gradients[j]:add(childGrads[j])
 		end
+	end
+	for j = 1, #gradients do
+	  gradients[j]:div(self.numMachines)
 	end
 end
 

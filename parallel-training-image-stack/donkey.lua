@@ -9,7 +9,7 @@ local testCache = paths.concat(opt.cache, 'testCache.t7')
 local meanstdCache = paths.concat(opt.cache, 'meanstdCache.t7')
 
 local loadSize = {3, 128, 128}
-local sampleSize = {6, 64, 64}
+local sampleSize = {3, 64, 64}
 
 local mean, std
 
@@ -47,10 +47,11 @@ if paths.filep(trainCache) then
   trainLoader.sampleHookTrain = trainHook
 else
   trainLoader = pairfileLoader{
-    loadfilepath = "Washington12pairs.txt",
+    loadfilepath = "/neural_networks/Washington12pairs.txt",
     loadSize = {3, 128, 128}, 
-    sampleSize = {6, 64, 64}, 
-    numClasses = 2, 
+    sampleSize = {3, 64, 64}, 
+    numClasses = 2,
+    directory = opt.trainData,
     sampleHookTrain = trainHook
   }
   torch.save(trainCache, trainLoader)
@@ -61,10 +62,11 @@ if paths.filep(testCache) then
   testLoader.sampleHookTrain = testHook
 else
   testLoader = pairfileLoader{
-    loadfilepath = "Washington13pairs.txt", 
+    loadfilepath = "/neural_networks/Washington13pairs.txt", 
     loadSize = {3, 128, 128}, 
-    sampleSize = {6, 64, 64}, 
+    sampleSize = {3, 64, 64}, 
     numClasses = 2,
+    directory = opt.testData,
     sampleHookTrain = testHook
   }
   torch.save(testCache, testLoader)

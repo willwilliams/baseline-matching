@@ -117,6 +117,11 @@ local function tableToOutput(self, dataTable, scalarTable)
     scalarLabels = torch.LongTensor(quantity * samplesPerDraw)
     labels = torch.LongTensor(quantity*samplesPerDraw, self.numClasses):fill(-1)
     for i=1,#dataTable do
+      --print("Adding input to data table.")
+      --print("Data input size:")
+      --print(dataTable[i]:size())
+      --print("Data chunk size:")
+      --print(data:size())
       local idx = (i - 1)*samplesPerDraw
       data[{{idx+1, idx+samplesPerDraw}}]:copy(dataTable[i])
       scalarLabels[{{idx+1, idx+samplesPerDraw}}]:fill(scalarTable[i])

@@ -33,16 +33,12 @@ function createModel()
 end
 
 model = createModel()
-criterion = nn.ClassNLLCriterion()
 
 print('=> Model')
 print(model)
 
-print('=> Criterion')
-print(criterion)
 
 print('==> Converting model to CUDA')
 model = model:cuda()
-criterion:cuda()
 
 collectgarbage()

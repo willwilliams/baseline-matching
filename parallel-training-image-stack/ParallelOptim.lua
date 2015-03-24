@@ -1,3 +1,5 @@
+local pl = require('pl.import_into')()
+
 require 'optim'
 require 'paths'
 
@@ -5,9 +7,9 @@ paths.dofile('DataMulti.lua')
 
 local ParallelOptim, parent = torch.class('ParallelOptim', 'nn.Optim')
 
-function ParallelOptim:__init(machinesList, model, optState, criterion, checkpoint_data)
+function ParallelOptim:__init(machinesList, model, optState, checkpoint_data)
 	parent:__init(model, optState, checkpoint_data)
-	self.parallelTrainer = DataMulti(machinesList, model, criterion)
+	self.parallelTrainer = DataMulti(machinesList, model)
 	self.numMachines = self.parallelTrainer:getNumMachines()
 end
 
@@ -19,11 +21,11 @@ function ParallelOptim:getNumMachines()
 	return self.numMachines
 end
 
-function getNumProcessForBatch()
+function ParallelOptim:getNumProcessForBatch()
 	return self.parallelTrainer.startNum
 end
 
-function getCachedLabels()
+function ParallelOptim:getCachedLabels()
 	return self.parallelTrainer:getLabelsCache()
 end
 
@@ -60,9 +62,10 @@ function ParallelOptim:optimize(optimMethod)
 	assert(self.modulesToOptState)
 
 	local errTotal = 0
-	for _,errValue in self.parallelTrainer:getErrs() do
+	for _,errValue in pairs(self.parallelTrainer:getErrs()) do
 		errTotal = errTotal + errValue
 	end
+	errTotal = errTotal/self.numMachines
 
 	self.parallelTrainer:zeroGradParameters()
 	self.parallelTrainer:accGradParameters()
@@ -92,5 +95,5 @@ function ParallelOptim:optimize(optimMethod)
             end
         end)
     end
-    return errTotal, outputs
+    return errTotal, self.parallelTrainer:getOutputs()
 end
