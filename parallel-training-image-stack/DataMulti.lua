@@ -93,7 +93,7 @@ function DataMulti:updateOutputAccGradParams(inputCPU, labelsCPU)
 		for i = 1, self.numMachines do
 			local id = self.process_list[i]
 			outputVal = parallel.children[id]:receive()
-			print("Received outputs from child " .. id)
+			--print("Received outputs from child " .. id)
 			self.outputs[id] = outputVal.output
 			self.errs[id] = outputVal.err
 			local childGrads = outputVal.gradParam

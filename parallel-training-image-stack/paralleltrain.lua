@@ -97,7 +97,7 @@ function train()
          -- the end callback (runs in the main thread)
          trainSingleProcess
       )
-      if i % (optimator:getNumMachines() + 3) == 0 then
+      if i % (optimator:getNumMachines() + opt.nDonkeys) == 0 then
          donkeys:synchronize()
       end
    end
@@ -154,7 +154,7 @@ function trainSingleProcess(inputsThread, labelsThread)
   receiveTensor(inputsThread, inputsCPU)
   receiveTensor(labelsThread, labelsCPU)
 
-  print("Received single process inputs, will train on them.")
+  --print("Received single process inputs, will train on them.")
   optimator:singleProcessTrain(inputsCPU, labelsCPU)
   if(optimator:getNumProcessForBatch() % optimator:getNumMachines() == 0) then
     local err, outputs = optimator:optimize(optim.sgd)
