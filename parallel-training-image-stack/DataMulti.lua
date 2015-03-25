@@ -104,7 +104,6 @@ function DataMulti:updateOutputAccGradParams()
 						--print("Received outputs from child " .. id)
 						unseen[id] = false 	
 						numReceived = numReceived + 1
-						self.outputs[id] = outputVal.output
 						self.errs[id] = outputVal.err
 						self.accs[id] = outputVal.acc
 						local childGrads = outputVal.gradParam

@@ -62,7 +62,7 @@ end
 ]]
 function ParallelOptim:optimize(optimMethod)
 	assert(optimMethod)
-	assert(#self.parallelTrainer:getOutputs() == self.numMachines)
+	assert(#self.parallelTrainer:getErrs() == self.numMachines)
 	assert(self.modulesToOptState)
 
 	local errTotal = 0

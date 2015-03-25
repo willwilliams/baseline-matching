@@ -156,7 +156,7 @@ function trainSingleProcess()
                               'top1-%%: %.2f \t' ..
                               'Loss: %.4f \t' ..
                               'LR: %.0e',
-                           top1, acc,
+                           acc, err,
                            optimState.learningRate))
     end
   end
