@@ -7,6 +7,7 @@ function dataWorker()
 	require 'cunn'
 	--require 'cudnn'
 
+	local currBatch = 0
     local criterion = nn.ClassNLLCriterion()	
     criterion:cuda()
 
@@ -27,15 +28,28 @@ function dataWorker()
 		currModel:backward(modelInputs, gradOutputs)
 		local _,gradParams = currModel:parameters()
 
+		local acc = -1
+		local top1 = 0
+		if currBatch % 15 == 0 then
+			local _,prediction_sorted = output:float():sort(2, true) -- descending
+          	local gt = labelsCPU
+          	local batchSize = labelsCPU:size()[1]
+          	for i=1,batchSize do
+            	local pi = prediction_sorted[i]
+            	if pi[1] == gt[i] then top1 = top1 + 1 end
+          	end
+          	acc = top1*100/batchSize
+        end
+
 		return {
-			output = currOutputs, 
+			acc = acc,
 			err = err, 
 			gradParam = gradParams
 		}	
 	end
 
 	while true do 
-		parallel.yield()
+		currBatch = currBatch + 1
 		local outputGrads = outputGradsWorker()
 		parallel.parent:send(outputGrads)
 		collectgarbage()
