@@ -27,6 +27,9 @@ end
 
 local optimator = ParallelOptim(opt.machines, model, optimState)
 
+-- send loader to processes
+optimator:sendDataInfo(opt.batchSize, trainLoader)
+
 -- Learning rate annealing schedule. We will build a new optimizer for
 -- each epoch.
 --
@@ -87,19 +90,7 @@ function train()
    loss_epoch = 0
 
    for i=1,opt.epochSize*optimator:getNumMachines() do
-      -- queue jobs to data-workers
-      donkeys:addjob(
-         -- the job callback (runs in data-worker thread)
-         function()
-            local inputs, labels = trainLoader:sample(opt.batchSize)
-            return sendTensor(inputs), sendTensor(labels)
-         end,
-         -- the end callback (runs in the main thread)
-         trainSingleProcess
-      )
-      if i % (optimator:getNumMachines() + opt.nDonkeys) == 0 then
-         donkeys:synchronize()
-      end
+      trainSingleProcess()
    end
 
    donkeys:synchronize()
@@ -143,21 +134,15 @@ function train()
    torch.save(paths.concat(opt.save, 'optimState_' .. epoch .. '.t7'), optimState)
 end -- of train()
 -------------------------------------------------------------------------------------------
--- create tensor buffers in main thread and deallocate their storages.
--- the thread loaders will push their storages to these buffers when done loading
-local inputsCPU = torch.FloatTensor()
-local labelsCPU = torch.LongTensor()
+
 -- 4. trainBatch - Used by train() to train a single batch after the data is loaded.
-function trainSingleProcess(inputsThread, labelsThread)
+function trainSingleProcess()
   cutorch.synchronize()
    -- set the data and labels to the main thread tensor buffers (free any existing storage)
-  receiveTensor(inputsThread, inputsCPU)
-  receiveTensor(labelsThread, labelsCPU)
 
-  --print("Received single process inputs, will train on them.")
-  optimator:singleProcessTrain(inputsCPU, labelsCPU)
+  optimator:singleProcessTrain()
   if(optimator:getNumProcessForBatch() % optimator:getNumMachines() == 0) then
-    local err, outputs = optimator:optimize(optim.sgd)
+    local err, acc = optimator:optimize(optim.sgd)
     cutorch.synchronize()
     -- Calculate top-1 and top-5 errors, and print information
     print(('Epoch: [%d][%d/%d]\tErr %.4f LR %.0e'):format(
@@ -166,28 +151,12 @@ function trainSingleProcess(inputsThread, labelsThread)
     batchNumber = batchNumber + 1
     loss_epoch = loss_epoch + err
     if (batchNumber % 15) == 0 then
-       -- top-1 and top-5 error
-      local top1 = 0
-      do
-        local labelsCache = optimator:getCachedLabels()
-        for processID, output in pairs(outputs) do 
-          local _,prediction_sorted = output:float():sort(2, true) -- descending
-          local gt = labelsCache[processID]
-          for i=1,opt.batchSize do
-            local pi = prediction_sorted[i]
-            if pi[1] == gt[i] then top1 = top1 + 1 end
-          end
-        end
-        top1_epoch = top1_epoch + top1
-        top1 = top1 * 100 / (opt.batchSize * optimator:getNumMachines())
-      end
-
        -- print info
       print(string.format('Accuracy ' ..
                               'top1-%%: %.2f \t' ..
                               'Loss: %.4f \t' ..
                               'LR: %.0e',
-                           top1, err,
+                           top1, acc,
                            optimState.learningRate))
     end
   end

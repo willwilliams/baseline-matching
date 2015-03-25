@@ -13,8 +13,8 @@ function ParallelOptim:__init(machinesList, model, optState, checkpoint_data)
 	self.numMachines = self.parallelTrainer:getNumMachines()
 end
 
-function ParallelOptim:singleProcessTrain(inputsCPU, labelsCPU)
-	self.parallelTrainer:updateOutputAccGradParams(inputsCPU, labelsCPU)
+function ParallelOptim:singleProcessTrain()
+	self.parallelTrainer:updateOutputAccGradParams()
 end
 
 function ParallelOptim:getNumMachines()
@@ -27,6 +27,10 @@ end
 
 function ParallelOptim:getCachedLabels()
 	return self.parallelTrainer:getLabelsCache()
+end
+
+function ParallelOptim:sendDataInfo(batchSize, trainLoader)
+  self.parallelTrainer:sendDataInfo(batchSize, trainLoader)
 end
 
 local function get_device_for_module(mod)
@@ -62,10 +66,17 @@ function ParallelOptim:optimize(optimMethod)
 	assert(self.modulesToOptState)
 
 	local errTotal = 0
+  local accTotal = 0
 	for _,errValue in pairs(self.parallelTrainer:getErrs()) do
 		errTotal = errTotal + errValue
 	end
+
+  for _,accValue in pairs(self.parallelTrainer:getAccs()) do 
+    accTotal = accTotal + accValue
+  end
+
 	errTotal = errTotal/self.numMachines
+  accTotal = accTotal/self.numMachines
 
 	local curGrad
 	local curParam
@@ -93,5 +104,5 @@ function ParallelOptim:optimize(optimMethod)
         end)
     end
     self.parallelTrainer:zeroGradParameters()
-    return errTotal, self.parallelTrainer:getOutputs()
+    return errTotal, accTotal
 end

@@ -14,7 +14,7 @@ function M.parse(arg)
                defaultDir ..'/parallel_stack_baseline_runs',
                'subdirectory in which to save/log experiments')
     cmd:option('-trainData',
-               defaultDir .. '/',
+               '~/',
                'home of training streetview dataset')
     cmd:option('-testData', 
                defaultDir .. '/', 

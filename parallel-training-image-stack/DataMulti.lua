@@ -31,8 +31,7 @@ function DataMulti:__init(machinesList, model)
     self.process_list = {} -- list of all processes in order created
     self.process_to_machine = {} -- key is the child process id, value is the machine id
     self.startNum = 0
-    self.outputs = {}
-    self.gradOutputs = {}
+    self.accs = {}
     self.errs = {}
     self.labels_cache = {}
 
@@ -42,8 +41,7 @@ function DataMulti:__init(machinesList, model)
 end
 
 function DataMulti:_resetBatchBegin()
-	self.outputs = {}
-	self.gradOutputs = {}
+	self.accs = {}
 	self.errs = {}
 	self.labels_cache = {}
 	self.startNum = 0
@@ -62,12 +60,17 @@ function DataMulti:restartChildren()
     parallel.children:exec(dataWorker)
 end
 
+function DataMulti:sendDataInfo(batchSize, trainLoader)
+	parallel.children:send(trainLoader)
+	parallel.children:send(batchSize)
+end
+
 --[[sends small input chunk to process; repeats this until 
 	all processes have done an input chunk
 	calculates output of model, error of model (based on criterion),
 	and gradients of loss with respect to the output
 ]]
-function DataMulti:updateOutputAccGradParams(inputCPU, labelsCPU)
+function DataMulti:updateOutputAccGradParams()
 	if self.startNum % self.numMachines == 0 then 
 		self:_resetBatchBegin()
 	end
@@ -75,21 +78,13 @@ function DataMulti:updateOutputAccGradParams(inputCPU, labelsCPU)
 	self.startNum = self.startNum + 1
 
 	local processID = self.process_list[self.startNum]
-	
-	-- cache labels for prediction purposes
-	self.labels_cache[processID] = labelsCPU
 
 	-- update output for each module
 	local child = parallel.children[processID]
-	child:join("computeOutput")
+	child:send(self.model)
 
-	-- object to pass to other process
-	computeObject = {model = self.model, inputs = inputCPU, labels = labelsCPU}
-	child:send(computeObject)
-	
 	print("Inputs sent.")
-	child:receive()
-	print("Data received, computation starting.")
+	
 	-- if we finished entire batch for all processes
 	if self.startNum % self.numMachines == 0 then
 		local numReceived = 0
@@ -111,6 +106,7 @@ function DataMulti:updateOutputAccGradParams(inputCPU, labelsCPU)
 						numReceived = numReceived + 1
 						self.outputs[id] = outputVal.output
 						self.errs[id] = outputVal.err
+						self.accs[id] = outputVal.acc
 						local childGrads = outputVal.gradParam
 						for j = 1, #childGrads do
 							gradients[j]:add(childGrads[j])
@@ -141,12 +137,8 @@ function DataMulti:getErrs()
 	return self.errs
 end
 
-function DataMulti:getOutputs()
-	return self.outputs
-end
-
-function DataMulti:getGradOutputs()
-	return self.gradOutputs
+function DataMulti:getAccs()
+	return self.accs
 end
 
 function DataMulti:extractModel()

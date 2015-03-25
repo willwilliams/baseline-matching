@@ -21,6 +21,7 @@ function doMain()
   os.execute('mkdir -p ' .. opt.save)
   
   paths.dofile('data.lua') 
+  paths.dofile('donkey.lua') -- to bring trainLoader in namespace so we can serialize + send to other stuff
   paths.dofile('model.lua')
   paths.dofile('util.lua')
   paths.dofile('paralleltrain.lua')
