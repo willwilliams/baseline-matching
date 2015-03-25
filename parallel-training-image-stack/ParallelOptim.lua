@@ -56,16 +56,45 @@ end
 	assumes that all outputs for a particular batch have finished computing for all processes
 	calculates the gradients and performs update according to the optimization method
 ]]
-function ParallelOptim:optimize(optimMethod)
+function ParallelOptim:startOptimizationLoop()
+  function optimizationLoop()
+    local totalFinished = 0
+    while true do
+      local _,gradients = self.model:parameters()
+      outputVals = parallel.children:receive("noblock")
+      local numFinished = 0
+      local totalErr = 0
+      local totalAcc = 0
+      for id, result in pairs(outputVals)
+        if result ~= nil
+          numFinished = numFinished + 1
+          local childGrads = result.gradParam
+          local childErr = result.err
+          totalErr = totalErr + childErr
+          local childAcc = result.acc
+          if childAcc > 0 then totalAcc = totalAcc + childAcc end
+          for j = 1, #childGrads do
+            gradients[j]:add(childGrads[j])
+          end
+        end
+      end
+      if numFinished > 0 then
+        for i = 1, #gradients do
+          gradients[i]:div(numFinished)
+        end
+        totalErr = totalErr/numFinished
+        self:optimize(optim.sgd, totalErr)
+        totalFinished = totalFinished + numFinished
+      end
+    end
+  end
+
+end
+
+function ParallelOptim:optimize(optimMethod, errTotal)
 	assert(optimMethod)
 	assert(#self.parallelTrainer:getOutputs() == self.numMachines)
 	assert(self.modulesToOptState)
-
-	local errTotal = 0
-	for _,errValue in pairs(self.parallelTrainer:getErrs()) do
-		errTotal = errTotal + errValue
-	end
-	errTotal = errTotal/self.numMachines
 
 	local curGrad
 	local curParam

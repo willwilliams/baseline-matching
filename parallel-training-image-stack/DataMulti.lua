@@ -34,7 +34,6 @@ function DataMulti:__init(machinesList, model)
     self.outputs = {}
     self.gradOutputs = {}
     self.errs = {}
-    self.labels_cache = {}
 
     self.numMachines = #self.machine_list
     self:restartChildren()
@@ -45,7 +44,6 @@ function DataMulti:_resetBatchBegin()
 	self.outputs = {}
 	self.gradOutputs = {}
 	self.errs = {}
-	self.labels_cache = {}
 	self.startNum = 0
 end
 
@@ -75,13 +73,9 @@ function DataMulti:updateOutputAccGradParams(inputCPU, labelsCPU)
 	self.startNum = self.startNum + 1
 
 	local processID = self.process_list[self.startNum]
-	
-	-- cache labels for prediction purposes
-	self.labels_cache[processID] = labelsCPU
 
 	-- update output for each module
 	local child = parallel.children[processID]
-	child:join("computeOutput")
 
 	-- object to pass to other process
 	computeObject = {model = self.model, inputs = inputCPU, labels = labelsCPU}
