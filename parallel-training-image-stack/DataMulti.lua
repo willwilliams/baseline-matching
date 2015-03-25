@@ -89,16 +89,23 @@ function DataMulti:updateOutputAccGradParams(inputCPU, labelsCPU)
 
 	-- if we finished entire batch for all processes
 	if self.startNum % self.numMachines == 0 then
+		local numReceived = 0
+		local seen = {}
 		local _,gradients = self.model:parameters()
-		for i = 1, self.numMachines do
-			local id = self.process_list[i]
-			outputVal = parallel.children[id]:receive()
-			--print("Received outputs from child " .. id)
-			self.outputs[id] = outputVal.output
-			self.errs[id] = outputVal.err
-			local childGrads = outputVal.gradParam
-			for j = 1, #childGrads do
-				gradients[j]:add(childGrads[j])
+		while numReceived < self.numMachines do
+			outputVals = parallel.children:receive("noblock")
+			for id, outputVal in pairs(outputVals)
+				--print("Received outputs from child " .. id)
+				if ~seen[id] and outputVal ~= nil then
+					seen[id] = true 	
+					numReceived = numReceived + 1
+					self.outputs[id] = outputVal.output
+					self.errs[id] = outputVal.err
+					local childGrads = outputVal.gradParam
+					for j = 1, #childGrads do
+						gradients[j]:add(childGrads[j])
+					end
+				end
 			end
 		end
 		for i = 1, #gradients do
