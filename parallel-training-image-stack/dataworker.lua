@@ -7,13 +7,14 @@ function dataWorker()
 	require 'cunn'
 	--require 'cudnn'
 
-    local criterion = nn.ClassNLLCriterion()	
-    criterion:cuda()
+    	local criterion = nn.ClassNLLCriterion()	
+    	criterion:cuda()
 
 	local modelInputs = torch.CudaTensor()
 
 	function outputGradsWorker() 
 		local info = parallel.parent:receive()
+		parallel.parent:send("data received")
 		local inputsCPU = info.inputs
 		modelInputs:resize(inputsCPU:size()):copy(inputsCPU)
 		local currModel = info.model

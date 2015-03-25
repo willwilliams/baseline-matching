@@ -86,20 +86,28 @@ function DataMulti:updateOutputAccGradParams(inputCPU, labelsCPU)
 	-- object to pass to other process
 	computeObject = {model = self.model, inputs = inputCPU, labels = labelsCPU}
 	child:send(computeObject)
-
+	
+	print("Inputs sent.")
+	child:receive()
+	print("Data received, computation starting.")
 	-- if we finished entire batch for all processes
 	if self.startNum % self.numMachines == 0 then
 		local numReceived = 0
-		local seen = {}
+		local unseen = {}
+		for _, id in pairs(self.process_list) do
+			unseen[id] = true
+		end
 		local _,gradients = self.model:parameters()
 		while numReceived < self.numMachines do
-			for i = 1, self.numMachines
+			for i = 1, self.numMachines do
 				local id = self.process_list[i]
-				if seen[id] == false then 
-					local outputVal, exitStat = parallel.children[id].receive("noblock")
+				if unseen[id] then 
+					--print("Waiting for gradients.")
+					local outputVal, exitStat = parallel.children[id]:receive("noblock")
+					--print(exitStat)
 					if exitStat then
 						--print("Received outputs from child " .. id)
-						seen[id] = true 	
+						unseen[id] = false 	
 						numReceived = numReceived + 1
 						self.outputs[id] = outputVal.output
 						self.errs[id] = outputVal.err
@@ -114,7 +122,6 @@ function DataMulti:updateOutputAccGradParams(inputCPU, labelsCPU)
 		for i = 1, #gradients do
 			gradients[i]:div(self.numMachines)
 		end
-		return self.outputs
 	end
 end
 
