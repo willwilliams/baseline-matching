@@ -66,17 +66,17 @@ function ParallelOptim:optimize(optimMethod)
 	assert(self.modulesToOptState)
 
 	local errTotal = 0
-  local accTotal = 0
+  	local accTotal = 0
 	for _,errValue in pairs(self.parallelTrainer:getErrs()) do
 		errTotal = errTotal + errValue
 	end
 
-  for _,accValue in pairs(self.parallelTrainer:getAccs()) do 
-    accTotal = accTotal + accValue
-  end
+  	for _,accValue in pairs(self.parallelTrainer:getAccs()) do 
+    		accTotal = accTotal + accValue
+  	end
 
 	errTotal = errTotal/self.numMachines
-  accTotal = accTotal/self.numMachines
+  	accTotal = accTotal/self.numMachines
 
 	local curGrad
 	local curParam

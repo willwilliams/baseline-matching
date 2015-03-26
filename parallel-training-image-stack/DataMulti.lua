@@ -62,8 +62,13 @@ end
 
 function DataMulti:sendDataInfo(batchSize, trainLoader)
 	parallel.children:send(loadfile("pairfileloader.lua"))
+	parallel.children:receive()
+	parallel.children:send(loadfile("util.lua"))
+	parallel.children:receive()
 	parallel.children:send(trainLoader)
+	parallel.children:receive()
 	parallel.children:send(batchSize)
+	parallel.children:receive()
 end
 
 --[[sends small input chunk to process; repeats this until 
