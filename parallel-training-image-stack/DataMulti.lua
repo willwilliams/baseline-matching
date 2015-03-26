@@ -61,6 +61,7 @@ function DataMulti:restartChildren()
 end
 
 function DataMulti:sendDataInfo(batchSize, trainLoader)
+	parallel.children:send(loadfile("pairfileloader.lua"))
 	parallel.children:send(trainLoader)
 	parallel.children:send(batchSize)
 end
