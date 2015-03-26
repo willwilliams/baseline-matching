@@ -89,7 +89,7 @@ function train()
    top5_epoch = 0
    loss_epoch = 0
 
-   for i=1,opt.epochSize*optimator:getNumMachines() do
+   for i=1,opt.epochSize do
       trainSingleProcess()
    end
 
@@ -141,7 +141,6 @@ function trainSingleProcess()
    -- set the data and labels to the main thread tensor buffers (free any existing storage)
 
   optimator:singleProcessTrain()
-  if(optimator:getNumProcessForBatch() % optimator:getNumMachines() == 0) then
     local err, acc = optimator:optimize(optim.sgd)
     cutorch.synchronize()
     -- Calculate top-1 and top-5 errors, and print information
@@ -159,6 +158,5 @@ function trainSingleProcess()
                            acc, err,
                            optimState.learningRate))
     end
-  end
   collectgarbage()
 end

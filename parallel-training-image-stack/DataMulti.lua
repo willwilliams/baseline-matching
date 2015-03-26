@@ -77,22 +77,9 @@ end
 	and gradients of loss with respect to the output
 ]]
 function DataMulti:updateOutputAccGradParams()
-	if self.startNum % self.numMachines == 0 then 
-		self:_resetBatchBegin()
-	end
-	
-	self.startNum = self.startNum + 1
-
-	local processID = self.process_list[self.startNum]
-
-	-- update output for each module
-	local child = parallel.children[processID]
-	child:send(self.model)
-
-	print("Inputs sent.")
+	parallel.children:send(self.model)
 	
 	-- if we finished entire batch for all processes
-	if self.startNum % self.numMachines == 0 then
 		local numReceived = 0
 		local unseen = {}
 		for _, id in pairs(self.process_list) do
@@ -123,7 +110,6 @@ function DataMulti:updateOutputAccGradParams()
 		for i = 1, #gradients do
 			gradients[i]:div(self.numMachines)
 		end
-	end
 end
 
 function DataMulti:getLabelsCache()
