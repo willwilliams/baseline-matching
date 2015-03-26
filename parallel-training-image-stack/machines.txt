@@ -13,3 +13,13 @@ ubuntu@ec2-52-4-16-42.compute-1.amazonaws.com
 ubuntu@ec2-52-4-43-168.compute-1.amazonaws.com
 ubuntu@ec2-52-4-59-199.compute-1.amazonaws.com
 ubuntu@ec2-52-4-3-17.compute-1.amazonaws.com
+ubuntu@ec2-52-1-103-87.compute-1.amazonaws.com
+ubuntu@ec2-52-4-79-193.compute-1.amazonaws.com
+ubuntu@ec2-52-4-70-216.compute-1.amazonaws.com
+ubuntu@ec2-52-0-89-247.compute-1.amazonaws.com
+ubuntu@ec2-52-4-68-209.compute-1.amazonaws.com
+ubuntu@ec2-52-4-14-78.compute-1.amazonaws.com
+ubuntu@ec2-52-4-54-65.compute-1.amazonaws.com
+ubuntu@ec2-52-4-8-167.compute-1.amazonaws.com
+ubuntu@ec2-52-4-1-15.compute-1.amazonaws.com
+ubuntu@ec2-52-4-46-13.compute-1.amazonaws.com
